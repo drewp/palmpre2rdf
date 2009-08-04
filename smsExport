@@ -1,0 +1,53 @@
+#!/usr/bin/python
+"""
+'flags' column
+261 emails                 100000101
+69 New Message and mail    001000101
+5 from someone else        000000101
+133 from me                010000101
+"""
+from __future__ import division
+from common import PRE, PalmDb, makeOutputGraph, rdfBool, literalFromPreTime
+
+graph = makeOutputGraph()
+db = PalmDb()
+
+def folderEntryFlags(graph, row):
+    pass # todo: read the flag bits and write some statements
+    
+db.addStatementsFromRows(
+    graph,
+    tableName='com_palm_pim_FolderEntry',
+    simpleLiteralCols=['messageText',
+                       'summary',
+                       'displayName',
+                       'previewText',
+                       'messageId',
+                       'smsClass', # todo
+                       'flags', # todo
+                       ],
+    convertLiteralCols=[
+        ('deviceTimeStamp', literalFromPreTime),
+        ('timeStamp', literalFromPreTime),
+        ('modTime', literalFromPreTime),
+        ('html', rdfBool),
+        ],
+    linkCols=['com_palm_accounts_ActiveRecordFolder_id'],
+    enumCols=[
+        ('messageType', PRE.messageType, PRE['messageType/']),
+        ],)
+
+db.addStatementsFromRows(
+    graph,
+    tableName='com_palm_accounts_ActiveRecordFolder',
+    linkCols=['com_palm_accounts_Account_id'],
+    simpleLiteralCols=['name'],
+    enumCols=[
+        ('dataType', PRE.accountDataType, PRE['accountDataType/']),
+        ],
+    )
+
+#for flag, msg, summ in graph.query("SELECT ?flag ?msg ?summ WHERE { [ pre:flags ?flag; pre:summary ?summ; pre:messageText ?msg ] }", initNs=dict(pre=PRE)):
+#    print flag, summ, msg
+    
+print graph.serialize(format='n3')
