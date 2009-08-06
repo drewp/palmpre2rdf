@@ -1,5 +1,5 @@
 from __future__ import division
-import time
+import time, sys
 from rdflib import Literal, Namespace, URIRef, RDF
 from rdflib.Graph import Graph
 from xml.utils import iso8601
@@ -32,14 +32,23 @@ def makeOutputGraph():
     graph = Graph()
     graph.bind('pre', 'http://bigasterisk.com/pre/general/')
     graph.bind('local', 'http://bigasterisk.com/pre/drew/') # todo
+    graph.bind('ad', 'http://bigasterisk.com/pre/general/accountDataType/')
+    graph.bind('mt', 'http://bigasterisk.com/pre/general/messageType/')
     return graph
 
 class PalmDb(object):
-    def __init__(self):
-        # this comes from /var/luna/data/dbdata on the pre
-        self.conn = sqlite3.connect('PalmDatabase.db3')
+    def __init__(self, dbFilename, phoneIdKeyword):
+        """
+        dbFilename is the path to a PalmDatabase.db3 file, which comes
+        from /var/luna/data/dbdata on a pre.
+
+        phoneIdKeyword will be used in URIs along with ID numbers from
+        the phone to unique the same number between two phones
+        """
+        self.conn = sqlite3.connect(dbFilename)
         self.conn.row_factory=sqlite3.Row
         self.cur = self.conn.cursor()
+        self.phoneIdKeyword = phoneIdKeyword
 
     def phoneUri(self, id):
         """uri for an id on this phone"""
@@ -47,7 +56,8 @@ class PalmDb(object):
             raise ValueError("invalid id")
         # if these had a non-number to start with, they would
         # abbreviate better in n3
-        return URIRef("http://bigasterisk.com/pre/drew/%s" % id)
+        return URIRef("http://bigasterisk.com/pre/%s/%s" %
+                      (self.phoneIdKeyword, id))
 
     def execute(self, *args):
         return self.cur.execute(*args)
@@ -62,7 +72,7 @@ class PalmDb(object):
 
     def addStatementsFromRows(self, graph, tableName,
                               simpleLiteralCols=[], convertLiteralCols=[],
-                              linkCols=[], enumCols=[]):
+                              linkCols=[], enumCols=[], rowHooks=[]):
         """
         simpleLiteralCols are strings where the column name is the
         predicate name and the object is just the sqlite cell as a
@@ -79,11 +89,17 @@ class PalmDb(object):
         make triples with the given predicate, where the object is a
         URIRef made of valueNamespace plus the string value in the
         sqlite cell
+
+        rowHooks is a list of functions that will be called with
+        (graph, subj, row) so you can add your own statements
         """
         for row in self.cur.execute("SELECT * FROM %s" % tableName): # ? not allowed
             uri = self.phoneUri(row['id'])
 
-            graph.add((uri, RDF.type, self.classUri(row)))
+            try:
+                graph.add((uri, RDF.type, self.classUri(row)))
+            except IndexError:
+                print >>sys.stderr, "unknown class in row %s, skipping" % row
 
             for col in simpleLiteralCols:
                 if row[col] is not None:
@@ -108,3 +124,6 @@ class PalmDb(object):
             for col, pred, valueNs in enumCols:
                 if row[col] is not None:
                     graph.add((uri, pred, URIRef(valueNs + row[col])))
+
+            for func in rowHooks:
+                func(graph, uri, row)

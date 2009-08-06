@@ -1,19 +1,27 @@
 #!/usr/bin/python
 """
 'flags' column
-261 emails                 100000101
-69 New Message and mail    001000101
-5 from someone else        000000101
-133 from me                010000101
+4 some nagios emails         0 0000 0100
+5 IM from someone else       0 0000 0101
+68 mms no text, or email msg 0 0100 0100
+69 New Message and mail      0 0100 0101
+133 IM from me               0 1000 0101
+197 mms, never with text     0 1100 0101
+261 emails                   1 0000 0101
 """
 from __future__ import division
+import sys
 from common import PRE, PalmDb, makeOutputGraph, rdfBool, literalFromPreTime
 
 graph = makeOutputGraph()
-db = PalmDb()
+db = PalmDb(sys.argv[1], sys.argv[2])
 
-def folderEntryFlags(graph, row):
-    pass # todo: read the flag bits and write some statements
+def folderEntryFlags(graph, subj, row):
+    flags = int(row['flags'])
+    if flags & 0b10000000:
+        graph.add((subj, PRE['from'], PRE.self)) # todo: obj
+    if flags & 0b01000000:
+        graph.add((subj, PRE['messageTypeFlag'], PRE.mms)) # guess
     
 db.addStatementsFromRows(
     graph,
@@ -35,7 +43,9 @@ db.addStatementsFromRows(
     linkCols=['com_palm_accounts_ActiveRecordFolder_id'],
     enumCols=[
         ('messageType', PRE.messageType, PRE['messageType/']),
-        ],)
+        ],
+    rowHooks=[folderEntryFlags],
+    )
 
 db.addStatementsFromRows(
     graph,
@@ -46,6 +56,19 @@ db.addStatementsFromRows(
         ('dataType', PRE.accountDataType, PRE['accountDataType/']),
         ],
     )
+
+db.addStatementsFromRows(
+    graph,
+    tableName='com_palm_messaging_data_ChatThread_com_palm_pim_FolderEntry_Chat_Messages',
+    linkCols=['has_id', 'belongs_id'])
+
+db.addStatementsFromRows(
+    graph,
+    tableName='com_palm_messaging_data_ChatThread',
+    simpleLiteralCols=['summary', 'firstName', 'lastName', 'name', 'chatAddress'],
+    enumCols=[
+        ('type', PRE.messageType, PRE['messageType/']),
+        ])
 
 #for flag, msg, summ in graph.query("SELECT ?flag ?msg ?summ WHERE { [ pre:flags ?flag; pre:summary ?summ; pre:messageText ?msg ] }", initNs=dict(pre=PRE)):
 #    print flag, summ, msg

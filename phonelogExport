@@ -1,10 +1,10 @@
 #!/usr/bin/python
 from __future__ import division
-import time
+import time, sys
 from rdflib import Literal, Namespace, URIRef
 from common import PRE, PalmDb, literalFromPreTime, literalFromPreElapsed, makeOutputGraph
 
-db = PalmDb()
+db = PalmDb(sys.argv[1], sys.argv[2])
 graph = makeOutputGraph()
 db.addStatementsFromRows(graph,
                          tableName='com_palm_superlog_Superlog',
