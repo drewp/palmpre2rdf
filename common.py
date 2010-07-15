@@ -1,8 +1,8 @@
 from __future__ import division
-import time, sys
+import time, sys, datetime
 from rdflib import Literal, Namespace, URIRef, RDF
 from rdflib.Graph import Graph
-from xml.utils import iso8601
+from dateutil.tz import tzlocal
 import sqlite3
 
 XS = Namespace("http://www.w3.org/2001/XMLSchema#")
@@ -13,8 +13,7 @@ def literalFromPreTime(t):
     necessarily the one you were in when the event occurred (but we
     don't have that info)"""
     secs = int(t) / 1000
-    s = iso8601.tostring(secs,
-                         timezone=(time.timezone, time.altzone)[time.daylight])
+    s = datetime.datetime.fromtimestamp(secs, tzlocal()).isoformat()
     return Literal(s, datatype=XS.dateTime)
 
 def literalFromPreElapsed(t):
